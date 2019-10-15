@@ -31,7 +31,5 @@ export default {
   components: {
     Forecast,
   },
-  data: () => ({
-  }),
 };
 </script>

@@ -15,7 +15,7 @@
             v-bind:disabled="isLoading"
 
             v-bind:persistent-hint="true"
-            v-bind:hint="forecastNow.time"
+            v-bind:hint="firstForecast.time"
             v-bind:error="error"
             v-bind:error-messages="errorMessages"
           ></v-text-field>
@@ -24,7 +24,7 @@
 
         <div class="temperature mt-12 pt-12">
           <h1 class="display-4">
-            {{ forecastNow.temperature }}
+            {{ firstForecast.temperature }}
 
             <v-badge color="blue lighten-3">
               <template v-slot:badge>
@@ -48,7 +48,7 @@
             ></v-img>
 
             <span class="subheading font-weight-regular">
-              {{ forecastNow.description }}
+              {{ firstForecast.description }}
             </span>
          </v-flex>
         </div>
@@ -57,59 +57,19 @@
           <v-container fluid>
             <v-row dense>
 
-              <v-col cols="1">
+              <v-col cols="1" v-for="(card, i) in firstForecastCards" :key="i">
                 <v-card outlined>
                   <v-list-item three-line>
                     <v-list-item-content>
 
-                      <div class="overline mb-4">MAX</div>
+                      <div class="overline mb-4">{{ card.title }}</div>
 
                       <v-list-item-title class="headline mb-1">
-                        {{ forecastNow.maxTemp }}
+                        {{ card.value }}
                       </v-list-item-title>
 
                       <v-list-item-subtitle>
-                        {{ this.temperatureUnits }}
-                      </v-list-item-subtitle>
-
-                    </v-list-item-content>
-                  </v-list-item>
-                </v-card>
-              </v-col>
-
-              <v-col cols="1">
-                <v-card outlined>
-                  <v-list-item three-line>
-                    <v-list-item-content>
-
-                      <div class="overline mb-4">MIN</div>
-
-                      <v-list-item-title class="headline mb-1">
-                        {{ forecastNow.minTemp }}
-                      </v-list-item-title>
-
-                      <v-list-item-subtitle>
-                        {{ temperatureUnits }}
-                      </v-list-item-subtitle>
-
-                    </v-list-item-content>
-                  </v-list-item>
-                </v-card>
-              </v-col>
-
-              <v-col cols="1">
-                <v-card outlined>
-                  <v-list-item three-line>
-                    <v-list-item-content>
-
-                      <div class="overline mb-4">CLOUDS</div>
-
-                      <v-list-item-title class="headline mb-1">
-                        {{ forecastNow.clouds }}
-                      </v-list-item-title>
-
-                      <v-list-item-subtitle>
-                        %
+                        {{ card.subtitle }}
                       </v-list-item-subtitle>
 
                     </v-list-item-content>
@@ -144,11 +104,17 @@
 
     </v-layout>
 
+    <v-overlay :value="isLoading">
+      <v-progress-circular indeterminate size="64"></v-progress-circular>
+    </v-overlay>
   </v-container>
 </template>
 
 <script>
 import moment from 'moment';
+
+// TODO: Should be extracted from environment, ugh
+const OPENWEATHER_API_KEY  = '8892e2d93e33cc9aaa8d85e5a6ee11bc';
 
 export default {
   mounted: function() {
@@ -162,8 +128,6 @@ export default {
 
   data: () => ({
     gradient: ['#f72047', '#ffd200', '#1feaea'],
-
-    apiKey: '&appid=8892e2d93e33cc9aaa8d85e5a6ee11bc',
 
     baseURL: 'https://api.openweathermap.org/data/2.5/forecast?',
 
@@ -189,23 +153,35 @@ export default {
   }),
 
   computed: {
-    forecastNow: function() {
-      const firstForecast = this.forecast.list[0];
-      const weather = firstForecast.weather[0];
+    apiKey: function() {
+      return `&appid=${OPENWEATHER_API_KEY}`;
+    },
 
-      const [city, country, time, description, iconCode, temperature, maxTemp, minTemp, clouds] = [
-        this.forecast.city.name, // city
-        this.forecast.city.country, // country
-        this.convertUnixToLocalTime(firstForecast.dt), // time
-        weather.description, // description
-        weather.icon, // icon
-        `${Math.round(firstForecast.main.temp)}°`, // temperature
-        `${Math.round(firstForecast.main.temp_max)}°`, // max temp
-        `${Math.round(firstForecast.main.temp_min)}°`, // min temp
-        firstForecast.clouds.all, // clouds
-      ];
+    firstForecast: function() {
+      const [
+        city,
+        country,
+        time,
+        description,
+        iconCode,
+        temperature,
+        maxTemp,
+        minTemp,
+        clouds
+      ] = this.extractFirstForecast();
 
       return {city, country, time, description, iconCode, temperature, maxTemp, minTemp, clouds};
+    },
+
+    firstForecastCards() {
+      const forecast = this.firstForecast;
+      const unit = this.temperatureUnits;
+
+      return [
+        {title: 'MAX', subtitle: unit, value: forecast.maxTemp},
+        {title: 'MIN', subtitle: unit, value: forecast.minTemp},
+        {title: 'CLOUDS', subtitle: '%', value: forecast.clouds},
+      ];
     },
 
     temperatureUnits: function() {
@@ -229,6 +205,23 @@ export default {
 
     convertUnixToLocalTime(utime, format = 'h:mm a — dddd, Do MMM \'YY') {
       return moment.unix(utime).format(format);
+    },
+
+    extractFirstForecast() {
+      const firstForecast = this.forecast.list[0];
+      const weather = firstForecast.weather[0];
+
+      return [
+        this.forecast.city.name, // city
+        this.forecast.city.country, // country
+        this.convertUnixToLocalTime(firstForecast.dt), // time
+        weather.description, // description
+        weather.icon, // icon
+        `${Math.round(firstForecast.main.temp)}°`, // temperature
+        `${Math.round(firstForecast.main.temp_max)}°`, // max temp
+        `${Math.round(firstForecast.main.temp_min)}°`, // min temp
+        firstForecast.clouds.all, // clouds
+      ];
     },
 
     forecastByCity() {
@@ -256,7 +249,7 @@ export default {
             this.handleRequestSuccess(response) :
             this.handleRequestError(response);
         })
-        .then(() => this.fetchIcon(this.forecastNow.iconCode))
+        .then(() => this.fetchIcon(this.firstForecast.iconCode))
         .catch(error => console.error(error))
         .finally(() => this.isLoading = false);
     },
@@ -281,7 +274,7 @@ export default {
     handleRequestSuccess(response) {
       this.forecast = response;
       this.forecastTimeline = response.list;
-      this.searchCity = `${this.forecastNow.city}, ${this.forecastNow.country}`;
+      this.searchCity = `${this.firstForecast.city}, ${this.firstForecast.country}`;
     },
 
     handleRequestError(error) {
