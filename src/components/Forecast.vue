@@ -24,7 +24,19 @@
 
         <div class="temperature mt-12 pt-12">
           <h1 class="display-4">
-            {{ temperature }}
+            {{ forecastNow.temperature }}
+
+            <v-badge color="blue lighten-3">
+              <template v-slot:badge>
+                <v-icon small @click="changeUnits">
+                  {{ isMetric ? 'mdi-temperature-fahrenheit' : 'mdi-temperature-celsius'}}
+                </v-icon>
+              </template>
+
+              <sup class="display-3 font-weight-light">
+                {{ temperatureUnits }}
+              </sup>
+            </v-badge>
           </h1>
 
          <v-flex class="weather-description d-inline-flex align-center">
@@ -41,29 +53,93 @@
          </v-flex>
         </div>
 
+        <v-flex class="additional-information mb-6">
+          <v-container fluid>
+            <v-row dense>
+
+              <v-col cols="1">
+                <v-card outlined>
+                  <v-list-item three-line>
+                    <v-list-item-content>
+
+                      <div class="overline mb-4">MAX</div>
+
+                      <v-list-item-title class="headline mb-1">
+                        {{ forecastNow.maxTemp }}
+                      </v-list-item-title>
+
+                      <v-list-item-subtitle>
+                        {{ this.temperatureUnits }}
+                      </v-list-item-subtitle>
+
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-card>
+              </v-col>
+
+              <v-col cols="1">
+                <v-card outlined>
+                  <v-list-item three-line>
+                    <v-list-item-content>
+
+                      <div class="overline mb-4">MIN</div>
+
+                      <v-list-item-title class="headline mb-1">
+                        {{ forecastNow.minTemp }}
+                      </v-list-item-title>
+
+                      <v-list-item-subtitle>
+                        {{ temperatureUnits }}
+                      </v-list-item-subtitle>
+
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-card>
+              </v-col>
+
+              <v-col cols="1">
+                <v-card outlined>
+                  <v-list-item three-line>
+                    <v-list-item-content>
+
+                      <div class="overline mb-4">CLOUDS</div>
+
+                      <v-list-item-title class="headline mb-1">
+                        {{ forecastNow.clouds }}
+                      </v-list-item-title>
+
+                      <v-list-item-subtitle>
+                        %
+                      </v-list-item-subtitle>
+
+                    </v-list-item-content>
+                  </v-list-item>
+                </v-card>
+              </v-col>
+
+            </v-row>
+          </v-container>
+        </v-flex>
+
         <v-divider></v-divider>
-        <!-- <h1 class="display-1">
-          Weeklong outlook
-        </h1>
-        <v-sparkline v-if="forecast"
-          :value="temperatureForecast.temps"
 
-          :labels="temperatureForecast.times"
-          :label-size=2
-          :show-labels=false
-
-          :gradient="gradient"
-          :smooth=5
-          :padding=10
-          :line-width=2
-          :stroke-linecap="'round'"
-
-          auto-draw
-        >
-          <template v-slot:label="item">
-            {{ item.value }}
-          </template>
-        </v-sparkline> -->
+        <v-timeline align-top :dense="$vuetify.breakpoint.smAndDown" v-if="forecastTimeline">
+          <v-timeline-item
+            v-for="(item, i) in forecastTimeline"
+            :key="i"
+            :color="item.color"
+            :icon="item.icon"
+            :small=true
+          >
+            <span slot="opposite">{{ convertUnixToLocalTime(item.dt) }}</span>
+            <v-card :color="item.color" dark>
+              <v-card-title class="title">{{ Math.round(item.main.temp) }}° —  {{ item.weather[0].description }}</v-card-title>
+              <v-card-text>
+                <p>{{ item.weather[0].description }}</p>
+              </v-card-text>
+            </v-card>
+          </v-timeline-item>
+        </v-timeline>
       </v-flex>
 
     </v-layout>
@@ -99,6 +175,8 @@ export default {
 
     forecast: null,
 
+    forecastTimeline: null,
+
     iconURL: null,
 
     isLoading: false,
@@ -107,59 +185,48 @@ export default {
 
     searchCity: 'Vancouver,ca',
 
-    units: '&units=metric',
-
-    ecosystem: [
-      {
-        text: 'vuetify-loader',
-        href: 'https://github.com/vuetifyjs/vuetify-loader',
-      },
-      {
-        text: 'github',
-        href: 'https://github.com/vuetifyjs/vuetify',
-      },
-      {
-        text: 'awesome-vuetify',
-        href: 'https://github.com/vuetifyjs/awesome-vuetify',
-      },
-    ],
+    isMetric: true,
   }),
 
   computed: {
     forecastNow: function() {
-      const [city, country, time, description, iconCode, temperature] = [
+      const firstForecast = this.forecast.list[0];
+      const weather = firstForecast.weather[0];
+
+      const [city, country, time, description, iconCode, temperature, maxTemp, minTemp, clouds] = [
         this.forecast.city.name, // city
         this.forecast.city.country, // country
-        this.convertUnixToLocalTime(this.forecast.list[0].dt), // time
-        this.forecast.list[0].weather[0].description, // description
-        this.forecast.list[0].weather[0].icon, // icon
-        this.forecast.list[0].main.temp, // temperature
+        this.convertUnixToLocalTime(firstForecast.dt), // time
+        weather.description, // description
+        weather.icon, // icon
+        `${Math.round(firstForecast.main.temp)}°`, // temperature
+        `${Math.round(firstForecast.main.temp_max)}°`, // max temp
+        `${Math.round(firstForecast.main.temp_min)}°`, // min temp
+        firstForecast.clouds.all, // clouds
       ];
 
-      return {city, country, time, description, iconCode, temperature};
+      return {city, country, time, description, iconCode, temperature, maxTemp, minTemp, clouds};
     },
 
-    temperature: function() {
-      return `${Math.round(this.forecastNow.temperature)}°`;
+    temperatureUnits: function() {
+      return this.isMetric ? 'C' : 'F';
     },
 
-    temperatureForecast: function() {
-      const thing = this.forecast.list.reduce((acc, item, index) => {
-        const time = this.convertUnixToLocalTime(item.dt, 'ddd h:mma');
-        const temp = Math.round(item.main.temp);
+    units: function() {
+      return this.isMetric ? 'metric' : 'imperial';
+    },
 
-        acc.temps.push(temp);
-        acc.times.push(index % 3 == 0 ? time : ` `);
-
-        return acc;
-      }, {temps: [], times: []});
-
-      console.log('WOOF', thing)
-      return thing;
+    unitsQuery: function() {
+      return `&units=${this.units}`;
     },
   },
 
   methods: {
+    changeUnits() {
+      this.isMetric = !this.isMetric;
+      this.forecastByCity();
+    },
+
     convertUnixToLocalTime(utime, format = 'h:mm a — dddd, Do MMM \'YY') {
       return moment.unix(utime).format(format);
     },
@@ -170,7 +237,6 @@ export default {
     },
 
     forecastByCoordinates(coordinates) {
-      console.log('coordinates', coordinates);
       const lat = coordinates.coords.latitude;
       const lon = coordinates.coords.longitude;
       const requestParams = `lat=${lat}&lon=${lon}`;
@@ -179,36 +245,26 @@ export default {
     },
 
     makeRequest(requestParams) {
-      this.isLoading = true;
-      this.error = false;
-      this.errorMessages = [];
+      this.handleRequestStart();
 
-      const requestURL = `${this.baseURL}${requestParams}${this.units}${this.apiKey}`;
+      const requestURL = `${this.baseURL}${requestParams}${this.unitsQuery}${this.apiKey}`;
 
       return fetch(requestURL)
         .then(response => response.json())
         .then(response => {
-          if(response.cod == '200') {
-            this.forecast = response;
-            this.searchCity = `${this.forecastNow.city}, ${this.forecastNow.country}`;
-          } else {
-            this.handleFetchError(response);
-          }
+          response.cod == '200' ?
+            this.handleRequestSuccess(response) :
+            this.handleRequestError(response);
         })
-        .then(() => this.fetchIcon())
+        .then(() => this.fetchIcon(this.forecastNow.iconCode))
         .catch(error => console.error(error))
         .finally(() => this.isLoading = false);
     },
 
-    fetchIcon() {
-      this.isIconLoading = true;
-
-      const iconCode = this.forecastNow.iconCode;
+    fetchIcon(iconCode) {
       const iconRequestURL = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
 
-      return fetch(iconRequestURL)
-        .then(icon => this.iconURL = icon.url)
-        .finally(() => this.isIconLoading = false);
+      return fetch(iconRequestURL).then(icon => this.iconURL = icon.url);
     },
 
     handleGeolocationError(error) {
@@ -216,7 +272,19 @@ export default {
       this.forecastByCity();
     },
 
-    handleFetchError(error) {
+    handleRequestStart() {
+      this.isLoading = true;
+      this.error = false;
+      this.errorMessages = [];
+    },
+
+    handleRequestSuccess(response) {
+      this.forecast = response;
+      this.forecastTimeline = response.list;
+      this.searchCity = `${this.forecastNow.city}, ${this.forecastNow.country}`;
+    },
+
+    handleRequestError(error) {
       this.error = true;
       this.errorMessages = [error.message];
     }
